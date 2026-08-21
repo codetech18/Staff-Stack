@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-bg text-ink font-body antialiased;
+  }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { @apply bg-line2 rounded; }
+}
+
+@layer components {
+  .panel { @apply bg-surface border border-line rounded-xl overflow-hidden; }
+  .panel-head { @apply flex items-center justify-between px-4 py-3 border-b border-line; }
+  .panel-title { @apply font-display text-[13px] font-bold text-white; }
+  .btn-primary { @apply bg-accent hover:bg-blue-600 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors inline-flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed; }
+  .btn-ghost { @apply border border-line2 hover:border-accent hover:text-accent text-mut2 text-xs font-semibold px-3.5 py-2 rounded-lg transition-colors inline-flex items-center gap-1.5; }
+  .input { @apply bg-surface2 border border-line2 rounded-lg px-3 py-2 text-sm text-ink placeholder:text-mut focus:outline-none focus:border-accent w-full; }
+  .label { @apply block text-[11px] font-mono uppercase tracking-wider text-mut mb-1.5; }
+}
