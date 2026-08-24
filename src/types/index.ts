@@ -19,7 +19,8 @@ export type Employee = {
   email: string | null
   phone: string | null
   role: string
-  employment_type: 'full-time' | 'contract' | 'part-time'
+  employment_type: 'full-time' | 'contract' | 'part-time' | 'nysc'
+  staff_category: 'teaching' | 'non_teaching'
   start_date: string
   status: 'active' | 'on-leave' | 'exited'
   bank_name: string | null
@@ -82,7 +83,7 @@ export type LeaveRequest = {
   id: string
   org_id: string
   employee_id: string
-  leave_type: 'annual' | 'sick' | 'casual' | 'maternity'
+  leave_type: 'annual' | 'sick' | 'maternity' | 'study' | 'compassionate'
   start_date: string
   end_date: string
   days: number
@@ -115,4 +116,12 @@ export type EmployeeSubject = {
   employee_id: string
   subject_id: string
   subjects?: Subject
+}
+
+export type Term = {
+  id: string
+  org_id: string
+  name: string
+  start_date: string
+  end_date: string
 }

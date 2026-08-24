@@ -39,7 +39,8 @@ create table employees (
   email           text,
   phone           text,
   role            text not null,
-  employment_type text not null default 'full-time' check (employment_type in ('full-time','contract','part-time')),
+  employment_type text not null default 'full-time' check (employment_type in ('full-time','contract','part-time','nysc')),
+  staff_category  text not null default 'teaching' check (staff_category in ('teaching','non_teaching')),
   start_date      date not null default current_date,
   status          text not null default 'active' check (status in ('active','on-leave','exited')),
   bank_name       text,
@@ -109,7 +110,7 @@ create table leave_requests (
   id           uuid primary key default gen_random_uuid(),
   org_id       uuid references organisations(id) on delete cascade not null,
   employee_id  uuid references employees(id) on delete cascade not null,
-  leave_type   text not null check (leave_type in ('annual','sick','casual','maternity')),
+  leave_type   text not null check (leave_type in ('annual','sick','maternity','study','compassionate')),
   start_date   date not null,
   end_date     date not null,
   days         int not null,
@@ -176,8 +177,18 @@ create table employee_subjects (
   unique(employee_id, subject_id)
 );
 
+create table terms (
+  id           uuid primary key default gen_random_uuid(),
+  org_id       uuid references organisations(id) on delete cascade not null,
+  name         text not null,
+  start_date   date not null,
+  end_date     date not null,
+  created_at   timestamptz default now()
+);
+
 -- ROW LEVEL SECURITY
 alter table organisations     enable row level security;
+alter table terms             enable row level security;
 alter table org_members       enable row level security;
 alter table departments       enable row level security;
 alter table employees         enable row level security;
@@ -215,6 +226,7 @@ create policy "member all balances" on leave_balances for all
   using (employee_id in (select id from employees where org_id in (select my_org_ids())));
 create policy "member all attendance" on attendance for all using (org_id in (select my_org_ids()));
 create policy "member all documents"  on documents  for all using (org_id in (select my_org_ids()));
+create policy "member all terms"      on terms      for all using (org_id in (select my_org_ids()));
 
 -- ═══════════════════════════════
 -- SUBJECT TRACKING

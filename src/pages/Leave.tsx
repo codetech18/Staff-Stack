@@ -6,7 +6,7 @@ import { Avatar, Badge, Modal, Spinner, EmptyState } from '@/components/ui'
 import PageHeader from '@/components/layout/PageHeader'
 import type { Employee, LeaveRequest, Subject } from '@/types'
 
-const LEAVE_TYPES = ['annual', 'sick', 'casual', 'maternity'] as const
+import { LEAVE_TYPES } from '@/lib/school'
 
 export default function Leave() {
   const { org, session } = useAuth()
@@ -54,12 +54,15 @@ export default function Leave() {
         await supabase.from('employees').update({ status: 'on-leave' }).eq('id', req.employee_id)
       }
 
-      // increment used balance
-      const year = new Date(req.start_date).getFullYear()
-      const { data: bal } = await supabase.from('leave_balances').select('*').eq('employee_id', req.employee_id).eq('year', year).maybeSingle()
-      if (bal) {
-        const col = req.leave_type === 'annual' ? 'annual_used' : req.leave_type === 'sick' ? 'sick_used' : 'casual_used'
-        await supabase.from('leave_balances').update({ [col]: (bal as any)[col] + req.days }).eq('id', bal.id)
+      // Only annual and sick leave have a tracked quota — maternity, study,
+      // and compassionate leave are logged but not deducted from a balance.
+      if (req.leave_type === 'annual' || req.leave_type === 'sick') {
+        const year = new Date(req.start_date).getFullYear()
+        const { data: bal } = await supabase.from('leave_balances').select('*').eq('employee_id', req.employee_id).eq('year', year).maybeSingle()
+        if (bal) {
+          const col = req.leave_type === 'annual' ? 'annual_used' : 'sick_used'
+          await supabase.from('leave_balances').update({ [col]: (bal as any)[col] + req.days }).eq('id', bal.id)
+        }
       }
     }
     load()
@@ -166,7 +169,7 @@ function LogLeaveModal({ employees, onClose, onSaved }: {
       </select>
       <label className="label">Leave type</label>
       <select className="input mb-3 capitalize" value={f.leave_type} onChange={e => set('leave_type', e.target.value)}>
-        {LEAVE_TYPES.map(t => <option key={t} value={t} className="capitalize">{t}</option>)}
+        {LEAVE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
       </select>
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div><label className="label">Start date</label><input className="input" type="date" value={f.start_date} onChange={e => set('start_date', e.target.value)} /></div>

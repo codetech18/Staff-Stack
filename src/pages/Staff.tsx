@@ -5,6 +5,7 @@ import { naira, dateShort } from '@/lib/format'
 import { NIGERIAN_BANKS } from '@/lib/banks'
 import { StatCard, Avatar, Badge, Modal, Spinner, EmptyState } from '@/components/ui'
 import PageHeader from '@/components/layout/PageHeader'
+import { EMPLOYMENT_TYPES, STAFF_CATEGORIES } from '@/lib/school'
 import type { Employee, Department } from '@/types'
 
 export default function Staff() {
@@ -40,23 +41,23 @@ export default function Staff() {
       <PageHeader title="Staff" actions={<button className="btn-primary" onClick={() => setShowAdd(true)}>+ Add staff</button>} />
       <div className="p-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-          <StatCard label="Total staff" value={String(employees.length)} sub={`${departments.length} department${departments.length === 1 ? '' : 's'}`} />
-          <StatCard label="Full-time" value={String(employees.filter(e => e.employment_type === 'full-time').length)} />
-          <StatCard label="Contract" value={String(employees.filter(e => e.employment_type === 'contract').length)} />
+          <StatCard label="Total staff" value={String(employees.length)} sub={`${departments.length} section${departments.length === 1 ? '' : 's'}`} />
+          <StatCard label="Teaching staff" value={String(employees.filter(e => e.staff_category === 'teaching').length)} />
+          <StatCard label="Non-teaching staff" value={String(employees.filter(e => e.staff_category === 'non_teaching').length)} />
           <StatCard label="On leave" value={String(employees.filter(e => e.status === 'on-leave').length)} />
         </div>
 
         <div className="panel">
           <div className="panel-head"><div className="panel-title">All staff</div></div>
           {employees.length === 0 ? (
-            <EmptyState icon="👥" text="No staff added yet. Add your first employee to get started."
+            <EmptyState icon="👥" text="No staff added yet. Add your first staff member to get started."
               action={<button className="btn-primary" onClick={() => setShowAdd(true)}>+ Add staff</button>} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="bg-surface2">
-                    {['Name', 'Department', 'Role', 'Start date', 'Salary', 'Status'].map(h => (
+                    {['Name', 'Category', 'Section', 'Role', 'Start date', 'Salary', 'Status'].map(h => (
                       <th key={h} className="text-left font-mono text-[9px] uppercase tracking-widest text-mut px-4 py-2.5 border-b border-line">{h}</th>
                     ))}
                   </tr>
@@ -73,8 +74,14 @@ export default function Staff() {
                           </div>
                         </div>
                       </td>
+                      <td className="px-4 py-3 border-b border-line">
+                        {e.staff_category === 'teaching' ? <Badge tone="info">Teaching</Badge> : <Badge tone="warn">Non-teaching</Badge>}
+                      </td>
                       <td className="px-4 py-3 border-b border-line text-[13px]">{e.departments?.name ?? '—'}</td>
-                      <td className="px-4 py-3 border-b border-line text-[13px]">{e.role}</td>
+                      <td className="px-4 py-3 border-b border-line text-[13px]">
+                        {e.role}
+                        {e.employment_type === 'nysc' && <span className="ml-1.5 text-[10px] text-accent">NYSC</span>}
+                      </td>
                       <td className="px-4 py-3 border-b border-line font-mono text-[11px] text-mut2">{dateShort(e.start_date)}</td>
                       <td className="px-4 py-3 border-b border-line font-mono text-xs">{naira(currentSalary(e))}</td>
                       <td className="px-4 py-3 border-b border-line">
@@ -104,6 +111,7 @@ function AddStaffModal({ departments, onClose, onSaved }: {
   const [f, setF] = useState({
     first_name: '', last_name: '', email: '', phone: '', role: '',
     department_id: departments[0]?.id ?? '', employment_type: 'full-time',
+    staff_category: 'teaching',
     start_date: new Date().toISOString().slice(0, 10),
     basic: '', housing: '', transport: '', other_allowances: '', annual_rent: '',
     bank_code: '', account_number: '', account_name: '',
@@ -122,6 +130,7 @@ function AddStaffModal({ departments, onClose, onSaved }: {
       first_name: f.first_name, last_name: f.last_name,
       email: f.email || null, phone: f.phone || null,
       role: f.role, employment_type: f.employment_type,
+      staff_category: f.staff_category,
       start_date: f.start_date,
       bank_code: f.bank_code || null, bank_name: bank?.name ?? null,
       account_number: f.account_number || null, account_name: f.account_name || null,
@@ -159,24 +168,31 @@ function AddStaffModal({ departments, onClose, onSaved }: {
         <div><label className="label">Phone</label><input className="input" value={f.phone} onChange={e => set('phone', e.target.value)} /></div>
       </div>
       <div className="grid grid-cols-2 gap-3 mb-3">
-        <div><label className="label">Role</label><input className="input" value={f.role} onChange={e => set('role', e.target.value)} placeholder="e.g. Accountant" /></div>
+        <div><label className="label">Role</label><input className="input" value={f.role} onChange={e => set('role', e.target.value)} placeholder="e.g. Mathematics Teacher" /></div>
         <div>
-          <label className="label">Department</label>
+          <label className="label">Section / Department</label>
           <select className="input" value={f.department_id} onChange={e => set('department_id', e.target.value)}>
             {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label className="label">Staff category</label>
+          <select className="input" value={f.staff_category} onChange={e => set('staff_category', e.target.value)}>
+            {STAFF_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </div>
         <div>
           <label className="label">Employment type</label>
           <select className="input" value={f.employment_type} onChange={e => set('employment_type', e.target.value)}>
-            <option value="full-time">Full-time</option>
-            <option value="contract">Contract</option>
-            <option value="part-time">Part-time</option>
+            {EMPLOYMENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
         </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 mb-4">
         <div><label className="label">Start date</label><input className="input" type="date" value={f.start_date} onChange={e => set('start_date', e.target.value)} /></div>
+        <div></div>
       </div>
 
       <div className="font-mono text-[10px] uppercase tracking-widest text-accent mb-2 pt-2 border-t border-line">Monthly salary structure</div>

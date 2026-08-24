@@ -1,12 +1,41 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
+import { dateShort } from '@/lib/format'
 import PageHeader from '@/components/layout/PageHeader'
+import type { Term } from '@/types'
 
 export default function Settings() {
   const { org, session, refreshOrg, signOut } = useAuth()
   const navigate = useNavigate()
+
+  const [terms, setTerms] = useState<Term[]>([])
+  const [termName, setTermName] = useState('')
+  const [termStart, setTermStart] = useState('')
+  const [termEnd, setTermEnd] = useState('')
+  const [savingTerm, setSavingTerm] = useState(false)
+
+  const loadTerms = async () => {
+    if (!org) return
+    const { data } = await supabase.from('terms').select('*').eq('org_id', org.id).order('start_date')
+    setTerms((data ?? []) as Term[])
+  }
+  useEffect(() => { loadTerms() }, [org?.id])
+
+  const addTerm = async () => {
+    if (!org || !termName || !termStart || !termEnd) return
+    setSavingTerm(true)
+    await supabase.from('terms').insert({ org_id: org.id, name: termName, start_date: termStart, end_date: termEnd })
+    setTermName(''); setTermStart(''); setTermEnd('')
+    setSavingTerm(false)
+    loadTerms()
+  }
+
+  const removeTerm = async (id: string) => {
+    await supabase.from('terms').delete().eq('id', id)
+    loadTerms()
+  }
 
   const [orgConfirm, setOrgConfirm] = useState('')
   const [deletingOrg, setDeletingOrg] = useState(false)
@@ -51,6 +80,37 @@ export default function Settings() {
             <span className="text-mut">Industry</span><span className="text-right">{org?.industry ?? '—'}</span>
             <span className="text-mut">Salary day</span><span className="text-right">{org?.salary_day ?? '—'}</span>
             <span className="text-mut">Signed in as</span><span className="text-right">{session?.user.email}</span>
+          </div>
+        </div>
+
+        <div className="panel mb-6">
+          <div className="panel-head"><div className="panel-title">Term dates</div></div>
+          <div className="p-4">
+            <p className="text-xs text-mut mb-3 leading-relaxed">
+              Add your school's terms so Attendance knows the difference between a real absence and a normal
+              mid-term break. Without any terms set, every weekday is treated as a school day.
+            </p>
+            {terms.length > 0 && (
+              <div className="flex flex-col gap-1.5 mb-4">
+                {terms.map(t => (
+                  <div key={t.id} className="flex items-center justify-between bg-surface2 border border-line2 rounded-lg px-3 py-2">
+                    <div>
+                      <div className="text-xs font-semibold text-white">{t.name}</div>
+                      <div className="text-[11px] text-mut">{dateShort(t.start_date)} – {dateShort(t.end_date)}</div>
+                    </div>
+                    <button className="text-mut hover:text-danger text-sm" onClick={() => removeTerm(t.id)}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="grid grid-cols-3 gap-3">
+              <input className="input" value={termName} onChange={e => setTermName(e.target.value)} placeholder="e.g. First Term 2026/2027" />
+              <input className="input" type="date" value={termStart} onChange={e => setTermStart(e.target.value)} />
+              <input className="input" type="date" value={termEnd} onChange={e => setTermEnd(e.target.value)} />
+            </div>
+            <button className="btn-primary mt-3" onClick={addTerm} disabled={savingTerm || !termName || !termStart || !termEnd}>
+              {savingTerm ? 'Adding…' : '+ Add term'}
+            </button>
           </div>
         </div>
 

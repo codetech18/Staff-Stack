@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { Avatar, Badge, Modal, Spinner, EmptyState } from '@/components/ui'
 import PageHeader from '@/components/layout/PageHeader'
+import { CLASS_LEVELS } from '@/lib/school'
 import type { Employee, Subject } from '@/types'
 
 export default function Subjects() {
@@ -164,7 +165,10 @@ function SubjectModal({ subject, employees, onClose, onSaved }: {
         </div>
         <div>
           <label className="label">Class level (optional)</label>
-          <input className="input" value={classLevel} onChange={e => setClassLevel(e.target.value)} placeholder="e.g. SS3" />
+          <select className="input" value={classLevel} onChange={e => setClassLevel(e.target.value)}>
+            <option value="">Not class-specific</option>
+            {CLASS_LEVELS.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
       </div>
 

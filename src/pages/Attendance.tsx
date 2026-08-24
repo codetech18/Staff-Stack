@@ -3,27 +3,41 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { StatCard, Avatar, Badge, Spinner, EmptyState } from '@/components/ui'
 import PageHeader from '@/components/layout/PageHeader'
-import type { Employee, AttendanceRecord } from '@/types'
+import type { Employee, AttendanceRecord, Term } from '@/types'
 
 export default function Attendance() {
   const { org, session } = useAuth()
   const [employees, setEmployees] = useState<Employee[]>([])
   const [records, setRecords] = useState<AttendanceRecord[]>([])
+  const [terms, setTerms] = useState<Term[]>([])
   const [loading, setLoading] = useState(true)
   const today = new Date().toISOString().slice(0, 10)
 
   const load = async () => {
     if (!org) return
     const weekAgo = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10)
-    const [e, a] = await Promise.all([
+    const [e, a, t] = await Promise.all([
       supabase.from('employees').select('*').eq('org_id', org.id).neq('status', 'exited'),
       supabase.from('attendance').select('*').eq('org_id', org.id).gte('date', weekAgo),
+      supabase.from('terms').select('*').eq('org_id', org.id),
     ])
     setEmployees((e.data ?? []) as Employee[])
     setRecords((a.data ?? []) as AttendanceRecord[])
+    setTerms((t.data ?? []) as Term[])
     setLoading(false)
   }
   useEffect(() => { load() }, [org?.id])
+
+  // If no terms have been set up yet, fall back to treating every weekday as
+  // a school day (backwards compatible). Once terms exist, a date only
+  // counts as a school day if it falls within one of them — this is what
+  // stops mid-term breaks from showing up as false absences.
+  const isSchoolDay = (dateStr: string) => {
+    const day = new Date(dateStr).getDay()
+    if (day === 0 || day === 6) return false
+    if (terms.length === 0) return true
+    return terms.some(t => dateStr >= t.start_date && dateStr <= t.end_date)
+  }
 
   const todayRecord = (empId: string) => records.find(r => r.employee_id === empId && r.date === today)
 
@@ -44,9 +58,8 @@ export default function Attendance() {
   })
 
   const dot = (empId: string, date: string) => {
+    if (!isSchoolDay(date)) return 'bg-surface2'
     const r = records.find(x => x.employee_id === empId && x.date === date)
-    const day = new Date(date).getDay()
-    if (day === 0 || day === 6) return 'bg-surface2'
     if (!r) return 'bg-surface2'
     if (r.status === 'present') return 'bg-ok/30'
     if (r.status === 'late') return 'bg-warn/30'
@@ -54,6 +67,7 @@ export default function Attendance() {
     return 'bg-danger/25'
   }
 
+  const todayIsSchoolDay = isSchoolDay(today)
   const presentToday = records.filter(r => r.date === today && (r.status === 'present' || r.status === 'late')).length
   const lateToday = records.filter(r => r.date === today && r.status === 'late').length
   const absentToday = records.filter(r => r.date === today && r.status === 'absent').length
@@ -77,6 +91,8 @@ export default function Attendance() {
           </div>
           {employees.length === 0 ? (
             <EmptyState icon="⏱" text="Add staff first to track attendance." />
+          ) : !todayIsSchoolDay ? (
+            <EmptyState icon="🏫" text="Today falls outside the current term — no attendance to mark. Set term dates in Settings if this isn't right." />
           ) : employees.map(e => {
             const rec = todayRecord(e.id)
             return (

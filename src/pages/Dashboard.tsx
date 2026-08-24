@@ -18,7 +18,7 @@ export default function Dashboard() {
     if (!org) return
     const today = new Date().toISOString().slice(0, 10)
     Promise.all([
-      supabase.from('employees').select('*').eq('org_id', org.id).neq('status', 'exited'),
+      supabase.from('employees').select('*, salary_structures(*)').eq('org_id', org.id).neq('status', 'exited'),
       supabase.from('leave_requests').select('*, employees(*)').eq('org_id', org.id)
         .eq('status', 'approved').lte('start_date', today).gte('end_date', today),
       supabase.from('payroll_runs').select('*').eq('org_id', org.id)
@@ -37,6 +37,15 @@ export default function Dashboard() {
   const nextSalary = new Date(now.getFullYear(), now.getMonth() + (now.getDate() > salaryDay ? 1 : 0), salaryDay)
   const daysToSalary = Math.ceil((nextSalary.getTime() - now.getTime()) / 86400000)
 
+  const currentGross = (e: Employee) => {
+    const s = [...(e.salary_structures ?? [])].sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0]
+    return s ? s.basic + s.housing + s.transport + s.other_allowances : 0
+  }
+  const teaching = employees.filter(e => e.staff_category === 'teaching')
+  const nonTeaching = employees.filter(e => e.staff_category === 'non_teaching')
+  const teachingCost = teaching.reduce((sum, e) => sum + currentGross(e), 0)
+  const nonTeachingCost = nonTeaching.reduce((sum, e) => sum + currentGross(e), 0)
+
   if (loading) return <><PageHeader title="Dashboard" /><Spinner /></>
 
   return (
@@ -46,7 +55,7 @@ export default function Dashboard() {
         actions={<Link to="/payroll" className="btn-primary">Run payroll</Link>}
       />
       <div className="p-6">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
           <StatCard
             label="Monthly payroll"
             value={latestRun ? naira(latestRun.gross_total) : '—'}
@@ -59,6 +68,22 @@ export default function Dashboard() {
             value={latestRun ? naira(latestRun.total_paye + latestRun.total_pension_employee + latestRun.total_pension_employer + latestRun.total_nhf + latestRun.total_nsitf) : '—'}
             sub={latestRun ? 'Latest processed run' : 'Run payroll to see'}
           />
+        </div>
+
+        <div className="panel mb-6">
+          <div className="panel-head"><div className="panel-title">Staff cost by category</div></div>
+          <div className="grid grid-cols-2 divide-x divide-line">
+            <div className="px-5 py-4">
+              <div className="font-mono text-[10px] uppercase tracking-wider text-mut mb-1">Teaching staff</div>
+              <div className="font-display text-xl font-extrabold text-white">{naira(teachingCost)}<span className="text-xs font-medium text-mut">/mo</span></div>
+              <div className="text-[11px] text-mut mt-0.5">{teaching.length} staff</div>
+            </div>
+            <div className="px-5 py-4">
+              <div className="font-mono text-[10px] uppercase tracking-wider text-mut mb-1">Non-teaching staff</div>
+              <div className="font-display text-xl font-extrabold text-white">{naira(nonTeachingCost)}<span className="text-xs font-medium text-mut">/mo</span></div>
+              <div className="text-[11px] text-mut mt-0.5">{nonTeaching.length} staff</div>
+            </div>
+          </div>
         </div>
 
         <div className="grid lg:grid-cols-[1fr_360px] gap-4">
