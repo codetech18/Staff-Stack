@@ -23,6 +23,8 @@ export type Employee = {
   staff_category: 'teaching' | 'non_teaching'
   start_date: string
   status: 'active' | 'on-leave' | 'exited'
+  end_date?: string | null
+  user_id?: string | null
   bank_name: string | null
   bank_code: string | null
   account_number: string | null
@@ -50,7 +52,12 @@ export type PayrollRun = {
   org_id: string
   period_month: number
   period_year: number
-  status: 'draft' | 'processed' | 'paid'
+  status: 'draft' | 'review' | 'approved' | 'paid'
+  prepared_by?: string
+  approved_by?: string
+  approved_at?: string
+  payment_reference?: string
+  calculation_version?: string
   gross_total: number
   net_total: number
   total_paye: number
@@ -77,6 +84,7 @@ export type Payslip = {
   net_pay: number
   token: string
   employees?: Employee
+  employee_snapshot?: Employee
 }
 
 export type LeaveRequest = {

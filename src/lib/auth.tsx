@@ -2,74 +2,132 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import type { Org } from '@/types'
-
+import { isDemo, demoOrg, demoSession } from './demo'
+import type { MemberRole } from './workflows'
 type AuthCtx = {
   session: Session | null
   loading: boolean
   org: Org | null
   orgLoading: boolean
+  role: MemberRole | null
+  mfaVerified: boolean
+  error: string
   refreshOrg: () => Promise<void>
   signOut: () => Promise<void>
 }
-
 const Ctx = createContext<AuthCtx>({} as AuthCtx)
 export const useAuth = () => useContext(Ctx)
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [org, setOrg] = useState<Org | null>(null)
-  const [orgLoading, setOrgLoading] = useState(true)
-
-  // Tracks which user id we've actually finished checking an org for.
-  // This is what prevents a leftover "no org" value from a previous
-  // (or no) session from triggering a bad redirect right after login.
-  const checkedFor = useRef<string | null>(null)
-
+  const [session, setSession] = useState<Session | null>(isDemo ? (demoSession as Session) : null)
+  const [loading, setLoading] = useState(!isDemo),
+    [orgLoading, setOrgLoading] = useState(!isDemo)
+  const [org, setOrg] = useState<Org | null>(isDemo ? demoOrg : null),
+    [role, setRole] = useState<MemberRole | null>(isDemo ? 'owner' : null),
+    [error, setError] = useState('')
+  const checked = useRef<string | null>(isDemo ? 'demo-user' : null),
+    generation = useRef(0)
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
+    if (isDemo) return
+    let alive = true
+    supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (alive) {
+          setSession(data.session)
+          setLoading(false)
+          if (error) setError(error.message)
+        }
+      })
+      .catch(() => {
+        if (alive) {
+          setError('Unable to load your session. Refresh and try again.')
+          setLoading(false)
+        }
+      })
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s)
       setLoading(false)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
-    return () => sub.subscription.unsubscribe()
+    return () => {
+      alive = false
+      sub.subscription.unsubscribe()
+    }
   }, [])
-
   const refreshOrg = async () => {
+    if (isDemo) return
+    const ticket = ++generation.current
     if (!session) {
       setOrg(null)
-      checkedFor.current = null
+      setRole(null)
+      checked.current = null
       setOrgLoading(false)
       return
     }
     setOrgLoading(true)
-    const { data } = await supabase
-      .from('organisations')
-      .select('*')
-      .eq('owner_id', session.user.id)
-      .limit(1)
-      .maybeSingle()
-    setOrg(data as Org | null)
-    checkedFor.current = session.user.id
-    setOrgLoading(false)
+    setError('')
+    try {
+      const { data: membership, error: memberError } = await supabase
+        .from('org_members')
+        .select('role,org_id')
+        .eq('user_id', session.user.id)
+        .order('created_at')
+        .limit(1)
+        .maybeSingle()
+      if (memberError) throw memberError
+      let query = supabase.from('organisations').select('*')
+      const result = membership
+        ? await query.eq('id', membership.org_id).maybeSingle()
+        : await query.eq('owner_id', session.user.id).limit(1).maybeSingle()
+      if (result.error) throw result.error
+      if (ticket !== generation.current) return
+      setOrg(result.data as Org | null)
+      setRole((membership?.role as MemberRole) ?? (result.data ? 'owner' : null))
+    } catch (e) {
+      if (ticket === generation.current) {
+        setError((e as Error).message)
+        setOrg(null)
+        setRole(null)
+      }
+    } finally {
+      if (ticket === generation.current) {
+        checked.current = session.user.id
+        setOrgLoading(false)
+      }
+    }
   }
-
   useEffect(() => {
-    // Don't attempt an org check until the initial auth check has resolved —
-    // avoids an unnecessary extra flicker between "logged out" and "logged in".
-    if (loading) return
-    refreshOrg()
-  }, [session?.user?.id, loading])
-
-  const signOut = async () => { await supabase.auth.signOut() }
-
-  // Derived, not relied-on effect timing: org is only considered "loaded"
-  // once we've actually checked it for the CURRENT session's user id.
-  // This is what fixes the premature onboarding redirect on login.
-  const effectiveOrgLoading = orgLoading || (!!session && checkedFor.current !== session.user.id)
-
+    if (!loading) void refreshOrg()
+  }, [session?.user.id, loading])
+  let mfaVerified = isDemo
+  try {
+    if (session?.access_token.includes('.'))
+      mfaVerified =
+        JSON.parse(atob(session.access_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+          .aal === 'aal2'
+  } catch {}
+  const signOut = async () => {
+    if (isDemo) {
+      sessionStorage.removeItem('staffstack-demo')
+      location.href = '/login'
+      return
+    }
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+  }
   return (
-    <Ctx.Provider value={{ session, loading, org, orgLoading: effectiveOrgLoading, refreshOrg, signOut }}>
+    <Ctx.Provider
+      value={{
+        session,
+        loading,
+        org,
+        role,
+        mfaVerified,
+        error,
+        orgLoading: orgLoading || (!!session && checked.current !== session.user.id),
+        refreshOrg,
+        signOut,
+      }}
+    >
       {children}
     </Ctx.Provider>
   )

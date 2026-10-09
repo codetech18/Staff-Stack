@@ -1,0 +1,10 @@
+node_modules
+dist
+.vite-cache
+package-lock.json
+.env*
+*.sql
+
+# Preserve the landing-page work introduced alongside this task.
+src/pages/Landing.tsx
+src/pages/landing.css

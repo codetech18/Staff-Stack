@@ -17,22 +17,32 @@ export default function PayslipView() {
 
   useEffect(() => {
     if (!token) return
-    supabase.from('payslips')
-      .select('*, employees(*), payroll_runs(*, organisations(*))')
-      .eq('token', token).maybeSingle()
-      .then(({ data }) => { setSlip(data as FullSlip | null); setLoading(false) })
+    supabase.rpc('get_public_payslip', { p_token: token }).then(({ data }) => {
+      setSlip(data as FullSlip | null)
+      setLoading(false)
+    })
   }, [token])
 
-  if (loading) return <div className="min-h-screen grid place-items-center"><Spinner /></div>
-
-  if (!slip) return (
-    <div className="min-h-screen grid place-items-center p-4 text-center">
-      <div>
-        <div className="text-3xl mb-3 opacity-40">📄</div>
-        <div className="text-sm text-mut">This payslip link is invalid or has expired.<br />Contact your employer for a new one.</div>
+  if (loading)
+    return (
+      <div className="min-h-screen grid place-items-center">
+        <Spinner />
       </div>
-    </div>
-  )
+    )
+
+  if (!slip)
+    return (
+      <div className="min-h-screen grid place-items-center p-4 text-center">
+        <div>
+          <div className="text-3xl mb-3 opacity-40">📄</div>
+          <div className="text-sm text-mut">
+            This payslip link is invalid or has expired.
+            <br />
+            Contact your employer for a new one.
+          </div>
+        </div>
+      </div>
+    )
 
   const run = slip.payroll_runs
   const org = run.organisations
@@ -45,8 +55,10 @@ export default function PayslipView() {
         <div className="panel overflow-hidden print:border-0">
           <div className="px-6 py-5 border-b border-line bg-surface2 flex items-center justify-between">
             <div>
-              <div className="font-display text-lg font-extrabold text-white">{org.name}</div>
-              <div className="font-mono text-[10px] text-mut uppercase tracking-widest mt-0.5">Payslip · {period}</div>
+              <div className="font-display text-lg font-extrabold text-ink">{org.name}</div>
+              <div className="font-mono text-[10px] text-mut uppercase tracking-widest mt-0.5">
+                Payslip · {period}
+              </div>
             </div>
             <div className="w-9 h-9 rounded-lg bg-accent grid place-items-center font-display text-sm font-extrabold text-white">
               {org.name.slice(0, 1).toUpperCase()}
@@ -54,23 +66,41 @@ export default function PayslipView() {
           </div>
 
           <div className="px-6 py-4 border-b border-line grid grid-cols-2 gap-y-1.5 text-xs">
-            <span className="text-mut">Employee</span><span className="text-white font-medium text-right">{emp.first_name} {emp.last_name}</span>
-            <span className="text-mut">Role</span><span className="text-right">{emp.role}</span>
-            <span className="text-mut">Pay period</span><span className="text-right">{period}</span>
-            {emp.account_number && (<><span className="text-mut">Account</span><span className="font-mono text-right">{emp.bank_name} · {emp.account_number}</span></>)}
+            <span className="text-mut">Employee</span>
+            <span className="text-ink font-medium text-right">
+              {emp.first_name} {emp.last_name}
+            </span>
+            <span className="text-mut">Role</span>
+            <span className="text-right">{emp.role}</span>
+            <span className="text-mut">Pay period</span>
+            <span className="text-right">{period}</span>
+            {emp.account_number && (
+              <>
+                <span className="text-mut">Account</span>
+                <span className="font-mono text-right">
+                  {emp.bank_name} · {emp.account_number}
+                </span>
+              </>
+            )}
           </div>
 
           <div className="px-6 py-4 border-b border-line">
-            <div className="font-mono text-[10px] uppercase tracking-widest text-ok mb-2.5">Earnings</div>
+            <div className="font-mono text-[10px] uppercase tracking-widest text-ok mb-2.5">
+              Earnings
+            </div>
             <Row label="Basic" value={slip.basic} />
             {slip.housing > 0 && <Row label="Housing allowance" value={slip.housing} />}
             {slip.transport > 0 && <Row label="Transport allowance" value={slip.transport} />}
-            {slip.other_allowances > 0 && <Row label="Other allowances" value={slip.other_allowances} />}
+            {slip.other_allowances > 0 && (
+              <Row label="Other allowances" value={slip.other_allowances} />
+            )}
             <Row label="Gross pay" value={slip.gross} bold />
           </div>
 
           <div className="px-6 py-4 border-b border-line">
-            <div className="font-mono text-[10px] uppercase tracking-widest text-danger mb-2.5">Deductions</div>
+            <div className="font-mono text-[10px] uppercase tracking-widest text-danger mb-2.5">
+              Deductions
+            </div>
             <Row label="PAYE tax" value={-slip.paye} />
             <Row label="Pension (8%)" value={-slip.pension_employee} />
             <Row label="NHF (2.5%)" value={-slip.nhf} />
@@ -78,13 +108,20 @@ export default function PayslipView() {
           </div>
 
           <div className="px-6 py-5 flex items-center justify-between bg-surface2">
-            <span className="font-display text-sm font-bold text-white">Net pay</span>
-            <span className="font-display text-xl font-extrabold text-ok">{nairaFull(slip.net_pay)}</span>
+            <span className="font-display text-sm font-bold text-ink">Net pay</span>
+            <span className="font-display text-xl font-extrabold text-ok">
+              {nairaFull(slip.net_pay)}
+            </span>
           </div>
 
           <div className="px-6 py-3 border-t border-line flex items-center justify-between">
             <span className="font-mono text-[9px] text-mut">Generated by StaffStack</span>
-            <button className="text-[11px] text-accent font-medium print:hidden" onClick={() => window.print()}>Print / Save PDF</button>
+            <button
+              className="text-[11px] text-accent font-medium print:hidden"
+              onClick={() => window.print()}
+            >
+              Print / Save PDF
+            </button>
           </div>
         </div>
       </div>
@@ -95,9 +132,12 @@ export default function PayslipView() {
 function Row({ label, value, bold }: { label: string; value: number; bold?: boolean }) {
   return (
     <div className={`flex justify-between py-1 ${bold ? 'border-t border-line mt-1.5 pt-2' : ''}`}>
-      <span className={`text-xs ${bold ? 'font-semibold text-white' : 'text-mut2'}`}>{label}</span>
-      <span className={`font-mono text-xs ${bold ? 'font-semibold text-white' : value < 0 ? 'text-danger' : 'text-ink'}`}>
-        {value < 0 ? '−' : ''}{nairaFull(Math.abs(value))}
+      <span className={`text-xs ${bold ? 'font-semibold text-ink' : 'text-mut2'}`}>{label}</span>
+      <span
+        className={`font-mono text-xs ${bold ? 'font-semibold text-ink' : value < 0 ? 'text-danger' : 'text-ink'}`}
+      >
+        {value < 0 ? '−' : ''}
+        {nairaFull(Math.abs(value))}
       </span>
     </div>
   )

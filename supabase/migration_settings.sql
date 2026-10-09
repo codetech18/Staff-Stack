@@ -1,5 +1,3 @@
--- Run this in the Supabase SQL Editor.
--- Adds the missing DELETE policy so an organisation's owner can delete it
--- directly from the app (required for the new Settings page).
-
-create policy "owner delete org" on organisations for delete using (owner_id = auth.uid());
+-- Deprecated: do not run this legacy migration.
+-- Use supabase/migrations and the procedure in PRODUCTION.md.
+-- This file is intentionally inert so it cannot restore legacy access policies.

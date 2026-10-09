@@ -61,19 +61,26 @@ const MINIMUM_WAGE_ANNUAL_EXEMPTION = 840_000 // ₦70,000/month × 12
  * Annual PAYE under the Nigeria Tax Act 2025:
  *   1. Employees on ≤ ₦840,000/year (minimum wage) pay zero PAYE.
  *   2. Rent relief = min(20% of annual rent paid, ₦500,000).
- *   3. Taxable income = annual gross − annual pension (if enrolled) − rent relief.
+ *   3. Taxable income = annual gross − annual pension − annual NHF − rent relief.
  *   4. Apply the six progressive bands (0%–25%) to taxable income.
  */
 export function calculateAnnualPAYE(
   annualGross: number,
   annualPensionEmployee: number,
   annualRentPaid: number = 0,
+  annualNHF: number = 0
 ): number {
+  if (
+    [annualGross, annualPensionEmployee, annualRentPaid, annualNHF].some(
+      (n) => !Number.isFinite(n) || n < 0
+    )
+  )
+    throw new Error('Annual tax inputs must be finite and non-negative')
   if (annualGross <= 0) return 0
   if (annualGross <= MINIMUM_WAGE_ANNUAL_EXEMPTION) return 0
 
   const rentRelief = Math.min(annualRentPaid * 0.2, 500_000)
-  const taxable = Math.max(0, annualGross - annualPensionEmployee - rentRelief)
+  const taxable = Math.max(0, annualGross - annualPensionEmployee - annualNHF - rentRelief)
 
   let remaining = taxable
   let lastCap = 0
@@ -91,6 +98,10 @@ export function calculateAnnualPAYE(
 
 /** Full monthly payslip calculation from a salary structure + per-employee deduction toggles. */
 export function calculatePayslip(s: SalaryInput): PayslipCalc {
+  for (const amount of [s.basic, s.housing, s.transport, s.other_allowances, s.annual_rent ?? 0]) {
+    if (!Number.isFinite(amount) || amount < 0)
+      throw new Error('Salary amounts must be finite and non-negative')
+  }
   const gross = s.basic + s.housing + s.transport + s.other_allowances
   const annualGross = gross * 12
   const annualRent = s.annual_rent ?? 0
@@ -101,7 +112,12 @@ export function calculatePayslip(s: SalaryInput): PayslipCalc {
   const pension_employer = s.pension_enabled ? round2(pensionBase * 0.1) : 0
 
   // PAYE — pension relief only applies if actually deducted
-  const annualPAYE = calculateAnnualPAYE(annualGross, pension_employee * 12, annualRent)
+  const annualPAYE = calculateAnnualPAYE(
+    annualGross,
+    pension_employee * 12,
+    annualRent,
+    s.nhf_enabled ? round2(s.basic * 0.025) * 12 : 0
+  )
   const paye = round2(annualPAYE / 12)
 
   // NHF — only if enrolled

@@ -1,59 +1,21 @@
-// StaffStack — Account deletion
-// Supabase Edge Function (Deno runtime)
-//
-// Deletes every organisation the caller owns (cascades to all staff, payroll,
-// leave, attendance, subjects, documents), removes their org memberships, then
-// deletes the auth user itself. Irreversible.
-//
-// Deploy:  supabase functions deploy delete-account
-
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-
-Deno.serve(async (req) => {
-  const cors = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  }
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
-
-  try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    )
-
-    const authHeader = req.headers.get('Authorization') ?? ''
-    const jwt = authHeader.replace('Bearer ', '')
-    const { data: userData, error: userErr } = await supabase.auth.getUser(jwt)
-    if (userErr || !userData.user) return json({ error: 'Unauthorized' }, 401, cors)
-
-    const userId = userData.user.id
-
-    // Delete every organisation this user owns — cascades to employees,
-    // payroll_runs, payslips, leave_requests, attendance, subjects, documents.
-    const { error: orgDeleteErr } = await supabase
-      .from('organisations')
-      .delete()
-      .eq('owner_id', userId)
-    if (orgDeleteErr) return json({ error: orgDeleteErr.message }, 500, cors)
-
-    // Remove membership rows for orgs this user belongs to but doesn't own.
-    await supabase.from('org_members').delete().eq('user_id', userId)
-
-    // Finally delete the auth user itself.
-    const { error: authDeleteErr } = await supabase.auth.admin.deleteUser(userId)
-    if (authDeleteErr) return json({ error: authDeleteErr.message }, 500, cors)
-
-    return json({ deleted: true }, 200, cors)
-  } catch (e) {
-    console.error(e)
-    return json({ error: 'Internal error' }, 500, cors)
-  }
+Deno.serve(async req => {
+ const origin=Deno.env.get('APP_URL') ?? ''
+ const headers={'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type','Access-Control-Allow-Methods':'POST, OPTIONS','Content-Type':'application/json','Cache-Control':'no-store'}
+ const respond=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers})
+ if(req.method==='OPTIONS')return new Response('ok',{headers})
+ if(req.method!=='POST')return respond({error:'Method not allowed'},405)
+ try {
+  const {confirmation}=await req.json();if(confirmation!=='DELETE')return respond({error:'Explicit confirmation required'},400)
+  const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+  const jwt=(req.headers.get('authorization')??'').replace(/^Bearer /i,'')
+  const {data,error}=await admin.auth.getUser(jwt);if(error||!data.user)return respond({error:'Unauthorized'},401)
+  const {count,error:lookup}=await admin.from('organisations').select('id',{count:'exact',head:true}).eq('owner_id',data.user.id)
+  if(lookup)return respond({error:'Unable to check workspace ownership'},500)
+  if(count)return respond({error:'Transfer or remove owned workspaces first. Account deletion does not delete organisations.'},409)
+  // Auth FK cascades remove memberships; historical reviewer/actor references become null.
+  const {error:deleted}=await admin.auth.admin.deleteUser(data.user.id)
+  if(deleted)return respond({error:'Account could not be deleted. Contact support.'},500)
+  return respond({deleted:true})
+ }catch{return respond({error:'Account could not be deleted'},500)}
 })
-
-function json(body: unknown, status: number, cors: Record<string, string>) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...cors, 'Content-Type': 'application/json' },
-  })
-}

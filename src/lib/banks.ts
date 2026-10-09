@@ -29,25 +29,48 @@ type TransferRow = {
 }
 
 /** Generate bulk transfer CSV in a given bank's upload format. */
-export function generateBankCSV(rows: TransferRow[], format: 'gtbank' | 'access' | 'zenith'): string {
+export function generateBankCSV(
+  rows: TransferRow[],
+  format: 'gtbank' | 'access' | 'zenith'
+): string {
+  if (
+    rows.some(
+      (r) =>
+        !/^\d{10}$/.test(r.account_number) ||
+        !/^\d{3,6}$/.test(r.bank_code) ||
+        !Number.isFinite(r.amount) ||
+        r.amount < 0
+    )
+  )
+    throw new Error('Invalid bank export data')
   if (format === 'gtbank') {
     const header = 'Account Number,Account Name,Bank Code,Amount,Narration'
-    const lines = rows.map(r => `${r.account_number},${csvSafe(r.account_name)},${r.bank_code},${r.amount},${csvSafe(r.narration)}`)
+    const lines = rows.map(
+      (r) =>
+        `${r.account_number},${csvSafe(r.account_name)},${r.bank_code},${r.amount.toFixed(2)},${csvSafe(r.narration)}`
+    )
     return [header, ...lines].join('\n')
   }
   if (format === 'access') {
     const header = 'Beneficiary Account,Beneficiary Name,Beneficiary Bank,Amount,Remarks'
-    const lines = rows.map(r => `${r.account_number},${csvSafe(r.account_name)},${csvSafe(r.bank_name)},${r.amount},${csvSafe(r.narration)}`)
+    const lines = rows.map(
+      (r) =>
+        `${r.account_number},${csvSafe(r.account_name)},${csvSafe(r.bank_name)},${r.amount.toFixed(2)},${csvSafe(r.narration)}`
+    )
     return [header, ...lines].join('\n')
   }
   // zenith
   const header = 'ACCOUNT NO,ACCOUNT NAME,BANK CODE,AMOUNT,PAYMENT REFERENCE'
-  const lines = rows.map(r => `${r.account_number},${csvSafe(r.account_name)},${r.bank_code},${r.amount},${csvSafe(r.narration)}`)
+  const lines = rows.map(
+    (r) =>
+      `${r.account_number},${csvSafe(r.account_name)},${r.bank_code},${r.amount.toFixed(2)},${csvSafe(r.narration)}`
+  )
   return [header, ...lines].join('\n')
 }
 
 function csvSafe(v: string): string {
-  return v.includes(',') ? `"${v}"` : v
+  const safe = /^[=+@\-\t\r]/.test(v) ? `'${v}` : v
+  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
 }
 
 export function downloadCSV(content: string, filename: string) {

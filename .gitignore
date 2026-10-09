@@ -32,3 +32,12 @@ pnpm-debug.log*
 
 # TypeScript build info
 *.tsbuildinfo
+
+.vite-cache/
+node_modules
+backups/
+.env.staging
+.env.production
+
+# Local design-review screenshots
+artifacts/
