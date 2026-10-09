@@ -11,7 +11,7 @@
     "check:workflows": "node scripts/check-workflows.cjs",
     "check:database": "node scripts/check-database.mjs",
     "check": "npm run check:workflows && npm run check:demo && npm run check:database && npm run check:edge",
-    "build:production": "node scripts/check-production-env.cjs && npm run build",
+    "build:production": "node scripts/build-production.cjs",
     "check:edge": "tsc -p tsconfig.edge.json && node scripts/check-edge.cjs",
     "format": "prettier --write src scripts .github *.json *.js *.ts *.md index.html",
     "format:check": "prettier --check src scripts .github *.json *.js *.ts *.md index.html"
