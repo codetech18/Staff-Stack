@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
@@ -47,13 +48,23 @@ export default function Login() {
       <input
         id="login-password"
         autoComplete="current-password"
-        className="input mb-4"
-        type="password"
+        className="input mb-2"
+        type={showPassword ? 'text' : 'password'}
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="••••••••"
         onKeyDown={(e) => e.key === 'Enter' && submit()}
       />
+      <label className="flex items-center gap-2 text-xs text-mut mb-4 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={showPassword}
+          onChange={(e) => setShowPassword(e.target.checked)}
+          aria-controls="login-password"
+          className="accent-accent"
+        />
+        Show password
+      </label>
       <button
         className="btn-primary w-full justify-center py-2.5"
         onClick={submit}
